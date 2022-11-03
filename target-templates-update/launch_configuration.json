@@ -1,0 +1,6 @@
+{
+    "copyPrivateIp": false,
+    "copyTags": false,
+    "launchDisposition": "STOPPED",
+    "targetInstanceTypeRightSizingMethod": "NONE"
+}
