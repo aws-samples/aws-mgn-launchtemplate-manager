@@ -38,7 +38,7 @@ HostId - h-xxxxxxxxxxx
 
 Fill in the sample_template.csv for all source servers or subset of source servers added on MGN console. This data is already available when you ran a discovery and assessment tool or you have a CMDB of your own, so copy the data from those files to populate some of the columns on sample_template.csv. 
 
-# Rules to follow for updating the sample_template.csv file
+# Rules for updating the sample_template.csv file
 There are some ground rules for updating the csv file. The rules are as below:
 
 1.  You only add to the CSV columns what you want to change in the existing MGN and EC2 Launch templates.
