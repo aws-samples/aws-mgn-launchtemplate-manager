@@ -72,7 +72,7 @@ def get_all_source_servers():
 def get_source_serverID(hostname, sourceServers):
 	'''Get the source server ID'''
 	for sourceServer in sourceServers:
-		if sourceServer['sourceProperties']['identificationHints']['hostname'] == hostname:
+		if 'hostname' in sourceServer['sourceProperties']['identificationHints'] and sourceServer['sourceProperties']['identificationHints']['hostname'] == hostname:
 			log.info (sourceServer['sourceServerID'])
 			return sourceServer['sourceServerID']
 	return None
@@ -86,7 +86,7 @@ def update_launch_config(general_launch_settings, launchTemplateVersion, sourceS
 	if newGeneralLaunchSettings['targetInstanceTypeRightSizingMethod'] != 'BASIC' and row['EC2_Instance_type'] != '':
 		newEc2Launchtemplate['LaunchTemplateData']['InstanceType'] = row['EC2_Instance_type']
 	if row['Copy_private_ip'] != '' and row['Copy_private_ip'].capitalize() != str(general_launch_settings['copyPrivateIp']):
-		newGeneralLaunchSettings['copyPrivateIp'] == True if row['Copy_private_ip'].capitalize() == "True" else False
+		newGeneralLaunchSettings['copyPrivateIp'] = True if row['Copy_private_ip'].capitalize() == "True" else False
 	if row['Start_Instance_upon_launch'] != '' and general_launch_settings['launchDisposition'] != row['Start_Instance_upon_launch']:
 		newGeneralLaunchSettings['launchDisposition'] = row['Start_Instance_upon_launch']
 	if row['Transfer_Server_tags'] != '' and str(general_launch_settings['copyTags']) != row['Transfer_Server_tags'].capitalize():
