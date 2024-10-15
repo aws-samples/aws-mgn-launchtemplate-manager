@@ -5,3 +5,5 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+mgn_launch_automate.log
+.DS_Store
