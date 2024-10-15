@@ -38,6 +38,10 @@ SOURCE_TYPE = None
 # default is False
 COPY_LAUNCH_SETTINGS = False
 
+# Whether or not the launch settings are to be copied
+# default is False
+COPY_POST_LAUNCH_SETTINGS = False
+
 # This variable gives us the name of the launch settings/configuration file name if it was passed as an argument
 # If no value was passed, it is set to None
 LAUNCH_SETTINGS_FILE = None
@@ -117,6 +121,7 @@ def validate_arguments(args):
     global SOURCE
     global SOURCE_TYPE
     global COPY_LAUNCH_SETTINGS
+    global COPY_POST_LAUNCH_SETTINGS
     global LAUNCH_SETTINGS_FILE
     global PARAMETERS
     
@@ -162,7 +167,15 @@ def validate_arguments(args):
             usage_message()
             exit(1)
 
+        # Check to see if --copy-post-lauch-settings specified along with source server
+        # If not, show an error and exit as either a source server or a launch settings file needs to be specified with this option
+        if args.get('copy_post_launch_settings') == True and args.get('source_server') == None:
+            LOGGER.error('Option to copy post launch settings used without providing a source server.')
+            usage_message()
+            exit(1)
+
         COPY_LAUNCH_SETTINGS = args.get('copy_launch_settings')
+        COPY_POST_LAUNCH_SETTINGS = args.get('copy_post_launch_settings')
         LAUNCH_SETTINGS_FILE = args.get('launch_settings_file')
 
         # Check to see if customer parameters need to be copied or all
@@ -416,7 +429,7 @@ def search_replicating_servers(filters, filter_by_tags, tag_key, tag_value):
 # This function takes a list of target servers launch configurations (includes template id) and updates them using the template data passed 
 #
 # ----------------------------------------
-def update_template_ids(target_servers_configuration, template_data, launch_configuration=None):
+def update_template_ids(target_servers_configuration, template_data, launch_configuration=None, post_launch_configuration=None):
 
     # Go through each target configuration
     # The data in this list is in this format:
@@ -450,14 +463,27 @@ def update_template_ids(target_servers_configuration, template_data, launch_conf
         if launch_configuration != None:
             LOGGER.debug(f'Updating launch configuration for target server {target_configuration["sourceServerID"]}')
             mgn.update_launch_configuration(
+                sourceServerID=target_configuration['sourceServerID'],
                 copyPrivateIp=launch_configuration['copyPrivateIp'],
                 copyTags=launch_configuration['copyTags'],
                 launchDisposition=launch_configuration['launchDisposition'],
-                sourceServerID=target_configuration['sourceServerID'],
                 targetInstanceTypeRightSizingMethod=launch_configuration['targetInstanceTypeRightSizingMethod'],
                 enableMapAutoTagging=launch_configuration['enableMapAutoTagging'],
                 mapAutoTaggingMpeID=launch_configuration['mapAutoTaggingMpeID']
             )
+
+        if post_launch_configuration != None:
+            LOGGER.debug(f'Updating post launch configuration for target server {target_configuration["sourceServerID"]}')
+            if 'postLaunchActions' in post_launch_configuration:
+                mgn.update_launch_configuration(
+                    sourceServerID=target_configuration['sourceServerID'],
+                    postLaunchActions=post_launch_configuration['postLaunchActions']
+                )
+            else:
+                mgn.update_launch_configuration(
+                    sourceServerID=target_configuration['sourceServerID'],
+                    postLaunchActions={}
+                )
 
         versions = ec2.describe_launch_template_versions(
             LaunchTemplateId=target_configuration['ec2LaunchTemplateID'],
@@ -621,6 +647,7 @@ def main():
     parser.add_argument('--template-id', help='Specify the launch template id to use', required=False)
     parser.add_argument('--launch-settings-file', help='Specify the launch settings/configuration json file to use', required=False)
     parser.add_argument('--copy-launch-settings', help='Specify whether the launch configruation should be copied or not if source server or json file specified', required=False, action='store_true')
+    parser.add_argument('--copy-post-launch-settings', help='Specify whether the launch configruation should be copied or not if source server or json file specified', required=False, action='store_true')
     parser.add_argument('--parameters', help='Specify which parameters to copy from the EC2 Launch Template', required=False)
     parser.add_argument('--debug', help='Set logging to DEBUG', required=False, action='store_true')
     
@@ -647,6 +674,13 @@ def main():
     else:
         # set source_launch_configuration to None since the user did not specify the argument to copy launch configuration
         source_launch_configuration = None
+
+    if args.get('copy_post_launch_settings') == True:
+        # extract post launch configuration from source server
+        source_post_launch_configuration = get_source_launch_configuration(SOURCE)
+    else:
+        # set post_launch_configuration to None since the user did not specify the argument to copy post launch configuration
+        source_post_launch_configuration = None
     
     target_servers_configuration = get_target_servers_configuration_list(TARGET)
 
@@ -665,7 +699,7 @@ def main():
     LOGGER.debug('Updating template ids and launch configuration (if the required argument is passed)')
 
     # Call function to update the target launch templates
-    update_template_ids(target_servers_configuration, template_data, source_launch_configuration)
+    update_template_ids(target_servers_configuration, template_data, source_launch_configuration, source_post_launch_configuration)
 
     LOGGER.info('Finished updating all targets.')
 
