@@ -433,8 +433,9 @@ def update_template_ids(target_servers_configuration, template_data, launch_conf
             },
             'name': 'string',
             'sourceServerID': 'string',
-            'targetInstanceTypeRightSizingMethod': 'NONE'|'BASIC'
-
+            'targetInstanceTypeRightSizingMethod': 'NONE'|'BASIC',
+            'enableMapAutoTagging': True|False,
+            'mapAutoTaggingMpeID': 'string'
         },
     ]
 
@@ -453,7 +454,9 @@ def update_template_ids(target_servers_configuration, template_data, launch_conf
                 copyTags=launch_configuration['copyTags'],
                 launchDisposition=launch_configuration['launchDisposition'],
                 sourceServerID=target_configuration['sourceServerID'],
-                targetInstanceTypeRightSizingMethod=launch_configuration['targetInstanceTypeRightSizingMethod']
+                targetInstanceTypeRightSizingMethod=launch_configuration['targetInstanceTypeRightSizingMethod'],
+                enableMapAutoTagging=launch_configuration['enableMapAutoTagging'],
+                mapAutoTaggingMpeID=launch_configuration['mapAutoTaggingMpeID']
             )
 
         versions = ec2.describe_launch_template_versions(
