@@ -33,6 +33,10 @@ Project to create a set of scripts / simplifications to manage (copy, clone, mas
 
     Copy launch configuration/settings from the source server or launch configuration json file to update launch configuration of target servers. Without this option, only launch template is updated
 
+5. `--copy-post-launch-settings`
+
+    Copy post launch configuration/settings from the source server to update post launch configuration of target servers.
+
 5. `--launch-settings-file launch_configuration.json`
 
     Copy launch configuration/settings from the file
@@ -71,7 +75,15 @@ Project to create a set of scripts / simplifications to manage (copy, clone, mas
     
     Update existing templates for the servers based on source server launch template and launch configuration 
 
-6. `python mgn-update-template --target key=value --template-id lt-0259a7eb0bfbd77c8`
+6. `python mgn-update-template --target s-111111111,s-2222222,s-333333333 --source-server s-3fae7af2d2d13fa9f --copy-post-launch-settings`
+
+    Update existing templates for the servers based on source server post launch configuration 
+
+7. `python mgn-update-template --target s-111111111,s-2222222,s-333333333 --source-server s-3fae7af2d2d13fa9f --copy-launch-settings --copy-post-launch-settings`
+
+    Update existing templates for the servers based on source server launch and post-launch configuration 
+
+8. `python mgn-update-template --target key=value --template-id lt-0259a7eb0bfbd77c8`
     
     Updates existing template for all servers with matching tag key/value pair based on template with id lt-0259a7eb0bfbd77c8
 
