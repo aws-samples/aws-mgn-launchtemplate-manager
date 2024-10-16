@@ -42,7 +42,7 @@ COPY_LAUNCH_SETTINGS = False
 # default is False
 COPY_POST_LAUNCH_SETTINGS = False
 
-# This variable gives us the name of the launch settings/configuration file name if it was passed as an argument
+# Gives us the name of the launch settings/configuration file name if it was passed as an argument
 # If no value was passed, it is set to None
 LAUNCH_SETTINGS_FILE = None
 
@@ -155,14 +155,15 @@ def validate_arguments(args):
             TARGET_TYPE = "key/value"
         else:
             LOGGER.error("Incorrect value for target specified.")
-            LOGGER.error(
-                "Target can be a comma seprated list of serverids, all or key/value pair specified using the format key=value."
-            )
+            LOGGER.error("target: comma-separated serverids, 'all', or key=value pair.")
             usage_message()
             sys.exit(1)
 
         # Check if both source server and launch template passed
-        if args.get("source_server") is not None and args.get("template_id") is not None:
+        if (
+            args.get("source_server") is not None
+            and args.get("template_id") is not None
+        ):
             LOGGER.error("Both source launch template and server specified.")
             LOGGER.error(
                 "Either a launch template or a source server id should be passed and not both."
@@ -193,10 +194,7 @@ def validate_arguments(args):
 
         # Check to see if --copy-post-lauch-settings specified along with source server
         # If not, show an error and exit as either a source server or a launch settings file needs to be specified with this option
-        if (
-            args.get("copy_post_launch_settings")
-            and args.get("source_server") is None
-        ):
+        if args.get("copy_post_launch_settings") and args.get("source_server") is None:
             LOGGER.error(
                 "Option to copy post launch settings used without providing a source server."
             )
@@ -291,8 +289,8 @@ def get_source_launch_configuration(source_server):
     if LAUNCH_SETTINGS_FILE is not None:
         # Launch settings file was passed as an argument. Read the file and load launch configuration
         LOGGER.debug("Launch settings json file specified. Reading data.")
-        with open(LAUNCH_SETTINGS_FILE) as f:
-            data = json.load(f)
+        with open(LAUNCH_SETTINGS_FILE) as file:
+            data = json.load(file)
             return_source_launch_configuration = {
                 "copyPrivateIp": data["copyPrivateIp"],
                 "copyTags": data["copyTags"],
@@ -624,7 +622,8 @@ def update_template_ids(
 
                 if (
                     "InstanceType" in PARAMETERS
-                    and template_data["LaunchTemplateData"].get("InstanceType") is not None
+                    and template_data["LaunchTemplateData"].get("InstanceType")
+                    is not None
                 ):
                     LOGGER.debug("Parameters: InstanceType to be copied")
                     launchTemplateData_parameter["InstanceType"] = template_data[
@@ -711,9 +710,9 @@ def get_network_interfaces_info(network_interfaces):
         if network_interface["DeviceIndex"] == 0:
             # the Device Indes 0 is found. Extract info from here
             try:
-                return_network_interface["AssociatePublicIpAddress"] = network_interface[
-                    "AssociatePublicIpAddress"
-                ]
+                return_network_interface["AssociatePublicIpAddress"] = (
+                    network_interface["AssociatePublicIpAddress"]
+                )
             except:
                 return_network_interface["AssociatePublicIpAddress"] = False
 
