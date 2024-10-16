@@ -61,6 +61,9 @@ PARAMETERS = [
 # Logger for logging messages
 LOGGER = logging.getLogger()
 
+mgn = boto3.client("mgn")
+ec2 = boto3.client("ec2")
+
 
 def usage_message():
     """
@@ -309,7 +312,10 @@ def validate_arguments(args):
                     continue
 
             if len(test_parameters) > 0:
-                LOGGER.error(f"Invalid parameter(s) in --parameters: {test_parameters}")
+                LOGGER.error(
+                    "Invalid parameter(s) in --parameters: %s",
+                    ", ".join(test_parameters),
+                )
                 LOGGER.error(
                     "Valid parameters: SubnetId, AssociatePublicIpAddress, DeleteOnTermination, "
                     "Groups, Tenancy, IamInstanceProfile, InstanceType"
@@ -317,13 +323,14 @@ def validate_arguments(args):
                 sys.exit(1)
 
         return True
-    else:
-        return False
+
+    return False
 
 
 def get_template_data(source_server_or_template_id):
     """
-    Retrieves the default EC2 Launch Template data associated with a source server or launch template ID.
+    Retrieves the default EC2 Launch Template data associated with a source server or launch
+    template ID.
 
     This function takes either a source server ID or a launch template ID and returns the
     default version of the associated EC2 Launch Template.
@@ -353,9 +360,6 @@ def get_template_data(source_server_or_template_id):
         >>> print(template_data['LaunchTemplateData']['InstanceType'])
         't2.micro'
     """
-
-    mgn = boto3.client("mgn")
-    ec2 = boto3.client("ec2")
 
     # Check if a server id was passed in source_server_or_template_id
     if SOURCE_TYPE == "server":
@@ -408,7 +412,7 @@ def get_source_launch_configuration(source_server):
         This function relies on global variables LAUNCH_SETTINGS_FILE and SOURCE_TYPE.
         It also uses a global LOGGER object for debug logging.
     """
-    mgn = boto3.client("mgn")
+
     if LAUNCH_SETTINGS_FILE is not None:
         # Launch settings file was passed as an argument.
         # Read the file and load launch configuration.
@@ -503,18 +507,19 @@ def get_target_servers_configuration_list(target):
         # Exit the program since the right value was not passed for this argument
         LOGGER.error("Incorrect value for target specified.")
         LOGGER.error(
-            "Target can be a comma seprated list of serverids, all or key/value pair specified using the format key=value."
+            "Target can be a comma separated list of serverids, all or key/value pair "
+            "specified using the format key=value."
         )
         sys.exit(1)
 
-    # Calling a function which will extract all replicating servers in MGN based on the filters set above
+    # Calling a function which will extract all replicating servers in MGN
+    # based on the filters set above
     target_servers = search_replicating_servers(
         filters, filter_by_tags, tag_key, tag_value
     )
 
     configuration_list = []
 
-    mgn = boto3.client("mgn")
     # For each server, call get_launch_configuration
     for server in target_servers:
         configuration = mgn.get_launch_configuration(
@@ -533,29 +538,33 @@ def search_replicating_servers(filters, filter_by_tags, tag_key, tag_value):
     to describe source servers and returns a list of servers matching the given criteria.
 
     Args:
-        filters (dict): A dictionary of filters to apply to the MGN describe_source_servers API call.
+        filters (dict): A dictionary of filters for the MGN describe_source_servers API call.
         filter_by_tags (bool): If True, additional filtering by tags will be performed.
         tag_key (str): The key of the tag to filter by (used if filter_by_tags is True).
-        tag_value (str): The value of the tag to filter by, or '*' for any value (used if filter_by_tags is True).
+        tag_value (str): The value of the tag to filter by, or '*' for any value
+                         (used if filter_by_tags is True).
 
     Returns:
-        list: A list of dictionaries, each representing a server that matches the specified criteria.
-              Servers in 'DISCONNECTED', 'CUTOVER', or 'DISCOVERED' states are excluded from the results.
+        list: A list of dictionaries, each representing a server matching the specified
+              criteria. Servers in 'DISCONNECTED', 'CUTOVER', or 'DISCOVERED' states are
+              excluded from the results.
 
     Notes:
         - The function paginates through all results from the MGN API.
-        - If filter_by_tags is True, it performs additional filtering based on the provided tag key and value.
-        - Servers matching the global SOURCE variable (if SOURCE_TYPE is 'server') are excluded from the results.
-        - Servers in 'DISCONNECTED', 'CUTOVER', or 'DISCOVERED' states are logged and excluded from the results.
+        - If filter_by_tags is True, it performs additional filtering based on the provided
+          tag key and value.
+        - Servers matching the global SOURCE variable (if SOURCE_TYPE is 'server') are
+          excluded from the results.
+        - Servers in 'DISCONNECTED', 'CUTOVER', or 'DISCOVERED' states are logged and
+          excluded from the results.
 
     Global Variables Used:
-        SOURCE_TYPE (str): Expected to be defined globally, determines if filtering by source server is needed.
-        SOURCE (str): Expected to be defined globally, the ID of the source server to exclude (if applicable).
+        SOURCE_TYPE (str): Expected to be defined globally, determines if filtering by
+                           source server is needed.
+        SOURCE (str): Expected to be defined globally, the ID of the source server to
+                      exclude (if applicable).
         LOGGER: Expected to be a logging object for outputting information messages.
-
     """
-
-    mgn = boto3.client("mgn")
 
     return_list = []
     response = mgn.describe_source_servers(filters=filters, maxResults=100)
@@ -568,13 +577,15 @@ def search_replicating_servers(filters, filter_by_tags, tag_key, tag_value):
         )
         return_list.extend(response["items"])
 
-    # Now that all the servers have been extracted, check if they need to be further filtered by tag key/value
+    # Now that all the servers have been extracted, check if they need to be further
+    # filtered by tag key/value
     if filter_by_tags:
         # New list created which would have filtered results
         new_list = []
 
-        # Evaluate each server in the list return_list and check its tags
-        # A user may pass just the tag key and * for the value. In which case the tag value is not evaluated
+        # Evaluate each server in the list return_list and check its tags.
+        # A user may pass just the tag key and * for the value. In which case the tag
+        # value is not evaluated.
         for server in return_list:
             if "tags" in server:
                 for tag in server["tags"]:
@@ -589,8 +600,10 @@ def search_replicating_servers(filters, filter_by_tags, tag_key, tag_value):
         return_list = new_list
 
     # Remove source server from the target servers list
-    # The source server may show up in target list when tag key/value pair is specified or all is specified
-    # this is needed only when a source server is specified in command line arguments and not launch template
+    # The source server may show up in target list when tag key/value pair is specified
+    # or all is specified
+    # This is needed only when a source server is specified in command line arguments
+    # and not launch template
     if SOURCE_TYPE == "server":
         iterate_list = return_list.copy()
         return_list = []
@@ -665,34 +678,9 @@ def update_template_ids(
         >>> update_template_ids(target_configs, template_data)
     """
 
-    # Go through each target configuration
-    # The data in this list is in this format:
-    """
-    [
-        {
-            'bootMode': 'LEGACY_BIOS'|'UEFI',
-            'copyPrivateIp': True|False,
-            'copyTags': True|False,
-            'ec2LaunchTemplateID': 'string',
-            'launchDisposition': 'STOPPED'|'STARTED',
-            'licensing': {
-                'osByol': True|False
-            },
-            'name': 'string',
-            'sourceServerID': 'string',
-            'targetInstanceTypeRightSizingMethod': 'NONE'|'BASIC',
-            'enableMapAutoTagging': True|False,
-            'mapAutoTaggingMpeID': 'string'
-        },
-    ]
-
-    """
-
-    ec2 = boto3.client("ec2")
-    mgn = boto3.client("mgn")
     for target_configuration in target_servers_configuration:
-
         LOGGER.info("Updating target server %s", target_configuration["sourceServerID"])
+
         # Check if launch_configuration specified. Update launch configuration if set to True
         if launch_configuration is not None:
             LOGGER.debug(
@@ -741,25 +729,13 @@ def update_template_ids(
                     template_data["LaunchTemplateData"]["NetworkInterfaces"]
                 )
 
-                # Get existing NetworkInterfaces dictionary from the target template with DeviceIndex of 0
+                # Get existing NetworkInterfaces dictionary from the target template
+                # with DeviceIndex of 0
                 existing_network_interface = get_network_interfaces_info(
                     version["LaunchTemplateData"].get(
                         "NetworkInterfaces", [{"DeviceIndex": 0}]
                     )
                 )
-
-                # The value returned by the above function call looks something like this:
-                """
-                 {
-                    "AssociatePublicIpAddress": false,
-                    "DeleteOnTermination": true,
-                    "DeviceIndex": 0,
-                    "Groups": [
-                        "sg-045df1ac3711111"
-                    ],
-                    "SubnetId": "subnet-79a5ce11"
-                }
-                """
 
                 LOGGER.debug("PARAMETERS = " + str(PARAMETERS))
                 LOGGER.debug(f"NetworkInterfaces = {network_interfaces}")
@@ -885,35 +861,41 @@ def update_template_ids(
 
 def get_network_interfaces_info(network_interfaces):
     """
-    Extracts network interface information from a launch template.
+        Extracts network interface information from a launch template.
 
-    This function reads the network interfaces list from a source launch template,
-    identifies the interface with DeviceIndex = 0, and extracts specific information
-    from it.
+        This function reads the network interfaces list from a source launch template,
+        identifies the interface with DeviceIndex = 0, and extracts specific information
+        from it.
 
-    Args:
-        network_interfaces (list): A list of dictionaries, each representing a network
-                                   interface configuration from a launch template.
+        Args:
+            network_interfaces (list): A list of dictionaries, each representing a network
+                                       interface configuration from a launch template.
 
-    Returns:
-        dict: A dictionary containing the following keys:
-              - DeviceIndex: Always set to 0.
-              - AssociatePublicIpAddress: Boolean indicating if a public IP should be associated.
-              - DeleteOnTermination: Boolean indicating if the interface should be deleted on instance termination.
-              - Groups: A list of security group IDs (if available).
-              - SubnetId: The ID of the subnet (if available).
+        Returns:
+            dict: A dictionary containing the following keys:
+                  - DeviceIndex: Always set to 0.
+                  - AssociatePublicIpAddress: Boolean indicating if a public IP should be 
+                    associated.
+                  - DeleteOnTermination: Boolean indicating if the interface should be deleted
+                    on instance termination.
+                  - Groups: A list of security group IDs (if available).
+                  - SubnetId: The ID of the subnet (if available).
 
-    Notes:
-        - The function focuses on the network interface with DeviceIndex = 0.
-        - If certain attributes are not found in the source data, default values or omissions are applied:
-          - AssociatePublicIpAddress defaults to False if not found.
-          - DeleteOnTermination defaults to True if not found.
-          - Groups and SubnetId are omitted if not found.
+        Notes:
+            - The function focuses on the network interface with DeviceIndex = 0.
+            - If certain attributes are not found in the source data, default values or
+              omissions are applied:
+              - AssociatePublicIpAddress defaults to False if not found.
+              - DeleteOnTermination defaults to True if not found.
+              - Groups and SubnetId are omitted if not found.
 
     Example:
-        >>> interfaces = [{'DeviceIndex': 0, 'AssociatePublicIpAddress': True, 'DeleteOnTermination': False, 'Groups': ['sg-1234'], 'SubnetId': 'subnet-5678'}]
-        >>> get_network_interfaces_info(interfaces)
-        {'DeviceIndex': 0, 'AssociatePublicIpAddress': True, 'DeleteOnTermination': False, 'Groups': ['sg-1234'], 'SubnetId': 'subnet-5678'}
+            >>> interfaces = [{'DeviceIndex': 0, 'AssociatePublicIpAddress': True,
+            ...                'DeleteOnTermination': False, 'Groups': ['sg-1234'],
+            ...                'SubnetId': 'subnet-5678'}]
+            >>> get_network_interfaces_info(interfaces)
+            {'DeviceIndex': 0, 'AssociatePublicIpAddress': True, 'DeleteOnTermination': False,
+             'Groups': ['sg-1234'], 'SubnetId': 'subnet-5678'}
     """
 
     return_network_interface = {}
@@ -954,7 +936,8 @@ def main():
     Main entry point for the script to copy launch templates and configurations across MGN servers.
 
     This function orchestrates the entire process of updating launch templates and configurations
-    for specified target servers in AWS Application Migration Service (MGN). It performs the following steps:
+    for specified target servers in AWS Application Migration Service (MGN). It performs
+    the following steps:
 
     1. Parses command-line arguments using argparse.
     2. Sets up logging based on the debug flag.
@@ -981,12 +964,14 @@ def main():
         1: Error in argument validation or no target servers found
 
     Note:
-        This function relies on global variables and imported modules for AWS interactions and logging.
+        This function relies on global variables and imported modules for AWS interactions
+        and logging.
     """
 
     # Setup argparse
     parser = argparse.ArgumentParser(
-        description="Script to copy launch template and launch configuration across multiple replicating servers in AWS Application Migration Service (MGN)",
+        description="Script to copy launch template and launch configuration across "
+        "multiple replicating servers in AWS Application Migration Service (MGN)",
         usage=usage_message(),
     )
     parser.add_argument(
@@ -994,7 +979,8 @@ def main():
     )
     parser.add_argument(
         "--source-server",
-        help="Specify the server id whose launch template would be used to update the launch template in target server",
+        help="Specify the server id whose launch template would be used to update the "
+             "launch template in target server",
         required=False,
     )
     parser.add_argument(
@@ -1007,13 +993,15 @@ def main():
     )
     parser.add_argument(
         "--copy-launch-settings",
-        help="Specify whether the launch configruation should be copied or not if source server or json file specified",
+        help="Specify whether the launch configuration should be copied or not if "
+             "source server or json file specified",
         required=False,
         action="store_true",
     )
     parser.add_argument(
         "--copy-post-launch-settings",
-        help="Specify whether the launch configruation should be copied or not if source server or json file specified",
+        help="Specify whether the post-launch configuration should be copied or not if "
+             "source server or json file specified",
         required=False,
         action="store_true",
     )
@@ -1047,14 +1035,16 @@ def main():
         # extract launch configuration from source server
         source_launch_configuration = get_source_launch_configuration(SOURCE)
     else:
-        # set source_launch_configuration to None since the user did not specify the argument to copy launch configuration
+        # set source_launch_configuration to None since the user did not specify
+        # the argument to copy launch configuration
         source_launch_configuration = None
 
     if args.get("copy_post_launch_settings"):
         # extract post launch configuration from source server
         source_post_launch_configuration = get_source_launch_configuration(SOURCE)
     else:
-        # set post_launch_configuration to None since the user did not specify the argument to copy post launch configuration
+        # set post_launch_configuration to None since the user did not specify
+        # the argument to copy post launch configuration
         source_post_launch_configuration = None
 
     target_servers_configuration = get_target_servers_configuration_list(TARGET)
@@ -1063,8 +1053,10 @@ def main():
     if len(target_servers_configuration) == 0:
         print("No target servers found matching the criteria. Exiting.")
         sys.exit(0)
+
     LOGGER.info(
-        f"Found {len(target_servers_configuration)} target server(s) matching the criteria."
+        "Found %d target server(s) matching the criteria.",
+        len(target_servers_configuration),
     )
 
     LOGGER.debug("\nPrinting launch template data:\n")
