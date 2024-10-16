@@ -62,12 +62,38 @@ PARAMETERS = [
 LOGGER = logging.getLogger()
 
 
-# ---------------------------------------
-#
-# Function to display usage options
-#
-# ---------------------------------------
 def usage_message():
+    """
+    Generates and logs a usage message for the script.
+
+    This function creates a formatted string containing information about how to use the script,
+    including command-line options and examples. It then logs this message using the global LOGGER
+    and returns it.
+
+    Returns:
+        str: A multi-line string containing the usage message and examples.
+
+    The usage message includes:
+    - A brief description of the script's purpose
+    - The general command structure
+    - Several specific examples demonstrating different use cases
+
+    Examples in the message cover:
+    1. Copying a launch template from one server to others
+    2. Copying launch settings and template based on server tags
+    3. Copying to all replicating servers
+    4. Selective parameter copying from a launch template
+    5. Combining template copying with launch configuration from a file
+
+    Note:
+        This function uses sys.argv[0] to dynamically include the script's filename in the examples.
+        It also uses a global LOGGER object to log the message at the INFO level.
+
+    Usage:
+        This function is typically called when displaying help information or when
+        incorrect arguments are provided to the script.
+    """
+
     msg = f"""
         Script to copy launch template and launch configuration across multiple replicating servers in AWS Application Migration Service (MGN)
         python {sys.argv[0]} --target target [--template-id  template-id | --source-server source-server] --copy-launch-settings --launch-settings-file launch-settings-file --parameters [SubnetId,InstanceType,AssociatePublicIpAddress,DeleteOnTermination,Groups,Tenancy,IamInstanceProfile] --debug
@@ -88,26 +114,51 @@ def usage_message():
         python {sys.argv[0]} --target all --template-id lt-12345 --copy-launch-settings --launch-settings-file.json
 
     """
+
     LOGGER.info(msg)
+
     return msg
 
 
-# ---------------------------------------
-#
-# Function to set logging
-#
-# ---------------------------------------
 def set_logging(debug):
+    """
+    Configures the logging settings for the script.
+
+    This function sets up the logging system, including the log format, log level,
+    and handling of third-party library logs. It clears any existing log handlers
+    before setting up new ones.
+
+    Args:
+        debug (bool): If True, sets the log level to DEBUG. Otherwise, sets it to INFO.
+
+    Global Variables:
+        LOGGER: The global logger object that this function configures.
+
+    The function performs the following actions:
+    1. Clears any existing handlers from the LOGGER.
+    2. Sets up a StreamHandler to output logs to sys.stderr.
+    3. Configures the log format to "LEVEL - MESSAGE".
+    4. Sets the log level based on the debug parameter.
+    5. Suppresses logs below ERROR level for boto3, botocore, and urllib3.
+
+    Note:
+        This function assumes that a global LOGGER object has been defined elsewhere
+        in the script.
+
+    Example:
+        >>> set_logging(True)  # Enables DEBUG logging
+        >>> set_logging(False)  # Sets logging to INFO level
+    """
 
     # Clear any previous loggers
     for handler in LOGGER.handlers:
         LOGGER.removeHandler(handler)
 
     # Set the format of the log messages
-    FORMAT = "%(levelname)s - %(message)s"
+    log_format = "%(levelname)s - %(message)s"
 
     handler = logging.StreamHandler(sys.stderr)
-    handler.setFormatter(logging.Formatter(FORMAT))
+    handler.setFormatter(logging.Formatter(log_format))
     LOGGER.addHandler(handler)
 
     # Set the log level
@@ -122,12 +173,44 @@ def set_logging(debug):
     logging.getLogger("urllib3").setLevel(logging.ERROR)
 
 
-# ---------------------------------------
-#
-# Function to validate if correct arguments have been specified
-#
-# ---------------------------------------
 def validate_arguments(args):
+    """
+    Validates the command-line arguments passed to the script.
+
+    This function checks if the correct combination of arguments has been provided
+    and sets global variables based on these arguments.
+
+    Args:
+        args (dict): A dictionary containing the parsed command-line arguments.
+
+    Returns:
+        bool: True if arguments are valid, False otherwise.
+
+    Global Variables Modified:
+        TARGET, TARGET_TYPE, SOURCE, SOURCE_TYPE, COPY_LAUNCH_SETTINGS,
+        COPY_POST_LAUNCH_SETTINGS, LAUNCH_SETTINGS_FILE, PARAMETERS
+
+    The function performs the following validations:
+    1. Checks if a target and either a template_id or source_server are specified.
+    2. Determines the type of target (servers, all, or key/value pair).
+    3. Ensures that only one of source_server or template_id is specified.
+    4. Validates the use of copy_launch_settings and copy_post_launch_settings options.
+    5. Checks the validity of specified parameters if any.
+
+    Raises:
+        SystemExit: If any validation fails, the function logs an error message,
+                    calls usage_message(), and exits the script with status code 1.
+
+    Note:
+        This function relies on a global LOGGER object for error logging and
+        a global usage_message() function for displaying usage information.
+
+    Example:
+        >>> args = {'target': 'all', 'source_server': 's-12345', 'copy_launch_settings': True}
+        >>> is_valid = validate_arguments(args)
+        >>> print(is_valid)
+        True
+    """
 
     global TARGET
     global TARGET_TYPE
@@ -143,7 +226,6 @@ def validate_arguments(args):
     if args.get("target") is not None and (
         args.get("template_id") is not None or args.get("source_server") is not None
     ):
-
         # Check what type of target has been passed
         if args.get("target").startswith("s-"):
             TARGET = args.get("target")
@@ -239,14 +321,39 @@ def validate_arguments(args):
         return False
 
 
-# ---------------------------------------
-#
-# This function takes a source server id or a launch template id and returns the EC2 default Launch Template associated with it
-#
-# ---------------------------------------
-
-
 def get_template_data(source_server_or_template_id):
+    """
+    Retrieves the default EC2 Launch Template data associated with a source server or launch template ID.
+
+    This function takes either a source server ID or a launch template ID and returns the
+    default version of the associated EC2 Launch Template.
+
+    Args:
+        source_server_or_template_id (str): Either a source server ID or a launch template ID.
+
+    Returns:
+        dict: A dictionary containing the default version of the EC2 Launch Template data.
+              Returns an empty dictionary if no default version is found.
+
+    Global Variables:
+        SOURCE_TYPE (str): Expected to be either "server" or "launch_template".
+        LOGGER: A logging object for debug messages.
+
+    Raises:
+        boto3.exceptions.Boto3Error: May raise Boto3 related exceptions during API calls.
+
+    Note:
+        - If SOURCE_TYPE is "server", the function first retrieves the launch configuration
+          from MGN and then uses the associated EC2 launch template ID.
+        - If SOURCE_TYPE is not "server", it assumes the input is a launch template ID.
+        - Only the default version of the launch template is returned.
+
+    Example:
+        >>> template_data = get_template_data('s-1234567890abcdef0')
+        >>> print(template_data['LaunchTemplateData']['InstanceType'])
+        't2.micro'
+    """
+
     mgn = boto3.client("mgn")
     ec2 = boto3.client("ec2")
 
@@ -277,20 +384,36 @@ def get_template_data(source_server_or_template_id):
     return version_to_return
 
 
-# ---------------------------------------
-#
-# This function takes a source server id and returns the launch configuration
-#
-# ---------------------------------------
-
-
 def get_source_launch_configuration(source_server):
+    """
+    Retrieves the launch configuration for a given source server.
+
+    This function attempts to retrieve the launch configuration either from a specified
+    JSON file (if LAUNCH_SETTINGS_FILE is set) or from AWS Migration Hub (if SOURCE_TYPE
+    is set to "server"). If neither condition is met, it returns None.
+
+    Args:
+        source_server (str): The ID of the source server.
+
+    Returns:
+        dict or None: The launch configuration for the specified source server if found,
+                      otherwise None.
+
+    Raises:
+        json.JSONDecodeError: If there's an error parsing the JSON file.
+        boto3.exceptions.Boto3Error: If there's an error communicating with AWS.
+        FileNotFoundError: If the specified LAUNCH_SETTINGS_FILE is not found.
+
+    Note:
+        This function relies on global variables LAUNCH_SETTINGS_FILE and SOURCE_TYPE.
+        It also uses a global LOGGER object for debug logging.
+    """
     mgn = boto3.client("mgn")
     if LAUNCH_SETTINGS_FILE is not None:
         # Launch settings file was passed as an argument.
         # Read the file and load launch configuration.
         LOGGER.debug("Launch settings json file specified. Reading data.")
-        with open(LAUNCH_SETTINGS_FILE) as file:
+        with open(LAUNCH_SETTINGS_FILE, "r", encoding="utf-8") as file:
             data = json.load(file)
             return_source_launch_configuration = {
                 "copyPrivateIp": data["copyPrivateIp"],
@@ -317,16 +440,37 @@ def get_source_launch_configuration(source_server):
     return return_source_launch_configuration
 
 
-# ---------------------------------------
-#
-# This function returns the list of 'launch configuration' for each server ids matching the tag key/value pair passed.
-# It could either receive a value of 'all' or a value in the format 'tag_key=tag_value'
-# If 'all' is passed, this function returns all source servers replicating in MGN
-# If tag_key=tag_value is passed (notice there is no space in between), it returns servers having this key/value pair
-# The user may also pass a comma delimited list of replicating server ids. eg: s-111111,s-2222222
-#
-# ---------------------------------------
 def get_target_servers_configuration_list(target):
+    """
+    Retrieves launch configurations for servers based on specified criteria.
+
+    This function returns a list of 'launch configurations' for server IDs matching
+    the provided target. The target can be 'all', a tag key-value pair, or a list of server IDs.
+
+    Args:
+        target (str): Specifies the servers to retrieve configurations for.
+            - 'all': Returns configurations for all replicating servers in MGN.
+            - 'tag_key=tag_value': Returns configurations for servers with the specified tag.
+            - 's-111111,s-2222222,...': Returns configurations for the specified server IDs.
+
+    Returns:
+        list: A list of dictionaries containing launch configurations for the matching servers.
+        Each dictionary includes details such as boot mode, IP settings, launch template ID,
+        licensing information, and more.
+
+    Raises:
+        SystemExit: If an incorrect value is provided for the target argument.
+
+    Example:
+        >>> get_target_servers_configuration_list('all')
+        [{'bootMode': 'LEGACY_BIOS', 'copyPrivateIp': True, ...}, ...]
+
+        >>> get_target_servers_configuration_list('environment=production')
+        [{'bootMode': 'UEFI', 'copyPrivateIp': False, ...}, ...]
+
+        >>> get_target_servers_configuration_list('s-111111,s-222222')
+        [{'bootMode': 'LEGACY_BIOS', 'copyPrivateIp': True, ...}, ...]
+    """
 
     # Setting this variable to false. This indicates we are not searching by tags
     filter_by_tags = False
@@ -368,26 +512,6 @@ def get_target_servers_configuration_list(target):
         filters, filter_by_tags, tag_key, tag_value
     )
 
-    # Call get_launch_configuration for each server
-    # The output will be in this format.
-    """
-    [
-        {
-            'bootMode': 'LEGACY_BIOS'|'UEFI',
-            'copyPrivateIp': True|False,
-            'copyTags': True|False,
-            'ec2LaunchTemplateID': 'string',
-            'launchDisposition': 'STOPPED'|'STARTED',
-            'licensing': {
-                'osByol': True|False
-            },
-            'name': 'string',
-            'sourceServerID': 'string',
-            'targetInstanceTypeRightSizingMethod': 'NONE'|'BASIC'
-
-        },
-    ]
-    """
     configuration_list = []
 
     mgn = boto3.client("mgn")
@@ -397,16 +521,39 @@ def get_target_servers_configuration_list(target):
             sourceServerID=server["sourceServerID"]
         )
         configuration_list.append(configuration)
+
     return configuration_list
 
 
-# ---------------------------------------
-#
-# This function is called by get_target_servers_configuration_list
-# It invokes the MGN api describe_source_servers and returns the list of servers matching critera
-#
-# ---------------------------------------
 def search_replicating_servers(filters, filter_by_tags, tag_key, tag_value):
+    """
+    Searches for replicating servers in MGN based on specified filters and tags.
+
+    This function is called by get_target_servers_configuration_list. It uses the MGN API
+    to describe source servers and returns a list of servers matching the given criteria.
+
+    Args:
+        filters (dict): A dictionary of filters to apply to the MGN describe_source_servers API call.
+        filter_by_tags (bool): If True, additional filtering by tags will be performed.
+        tag_key (str): The key of the tag to filter by (used if filter_by_tags is True).
+        tag_value (str): The value of the tag to filter by, or '*' for any value (used if filter_by_tags is True).
+
+    Returns:
+        list: A list of dictionaries, each representing a server that matches the specified criteria.
+              Servers in 'DISCONNECTED', 'CUTOVER', or 'DISCOVERED' states are excluded from the results.
+
+    Notes:
+        - The function paginates through all results from the MGN API.
+        - If filter_by_tags is True, it performs additional filtering based on the provided tag key and value.
+        - Servers matching the global SOURCE variable (if SOURCE_TYPE is 'server') are excluded from the results.
+        - Servers in 'DISCONNECTED', 'CUTOVER', or 'DISCOVERED' states are logged and excluded from the results.
+
+    Global Variables Used:
+        SOURCE_TYPE (str): Expected to be defined globally, determines if filtering by source server is needed.
+        SOURCE (str): Expected to be defined globally, the ID of the source server to exclude (if applicable).
+        LOGGER: Expected to be a logging object for outputting information messages.
+
+    """
 
     mgn = boto3.client("mgn")
 
@@ -471,17 +618,52 @@ def search_replicating_servers(filters, filter_by_tags, tag_key, tag_value):
     return return_list
 
 
-# ---------------------------------------
-#
-# This function takes a list of target servers launch configurations (includes template id) and updates them using the template data passed
-#
-# ----------------------------------------
 def update_template_ids(
     target_servers_configuration,
     template_data,
     launch_configuration=None,
     post_launch_configuration=None,
 ):
+    """
+    Updates launch templates and configurations for target servers.
+
+    This function iterates through a list of target server configurations and updates
+    their launch templates and configurations based on the provided template data
+    and optional launch and post-launch configurations.
+
+    Args:
+        target_servers_configuration (list): A list of dictionaries, each containing
+            the configuration for a target server.
+        template_data (dict): The source template data to be used for updating.
+        launch_configuration (dict, optional): Launch configuration to be applied.
+        post_launch_configuration (dict, optional): Post-launch configuration to be applied.
+
+    Global Variables Used:
+        LOGGER: For logging information and debug messages.
+        PARAMETERS: A list of parameters to be copied from the source template.
+
+    The function performs the following steps for each target server:
+    1. Updates the launch configuration if provided.
+    2. Updates the post-launch configuration if provided.
+    3. Retrieves the current launch template versions.
+    4. For the default version:
+       a. Extracts and updates network interface information.
+       b. Copies specified parameters from the source template.
+       c. Creates a new launch template version with the updated data.
+       d. Sets the new version as the default.
+
+    Note:
+        This function makes API calls to AWS services (EC2 and MGN) and assumes
+        the necessary permissions are in place.
+
+    Raises:
+        boto3.exceptions.Boto3Error: For any AWS API related errors.
+
+    Example:
+        >>> target_configs = [{'sourceServerID': 's-123', 'ec2LaunchTemplateID': 'lt-456'}]
+        >>> template_data = {'LaunchTemplateData': {...}}
+        >>> update_template_ids(target_configs, template_data)
+    """
 
     # Go through each target configuration
     # The data in this list is in this format:
@@ -583,7 +765,7 @@ def update_template_ids(
                 LOGGER.debug(f"NetworkInterfaces = {network_interfaces}")
 
                 # Create the LaunchTemplateData parameter based on what user wants to copy
-                launchTemplateData_parameter = {}
+                launch_template_data_parameter = {}
 
                 if "AssociatePublicIpAddress" in PARAMETERS:
                     LOGGER.debug("Parameters: AssociatePublicIpAddress to be copied")
@@ -632,7 +814,7 @@ def update_template_ids(
                     is not None
                 ):
                     LOGGER.debug("Parameters: InstanceType to be copied")
-                    launchTemplateData_parameter["InstanceType"] = template_data[
+                    launch_template_data_parameter["InstanceType"] = template_data[
                         "LaunchTemplateData"
                     ]["InstanceType"]
                 else:
@@ -646,8 +828,8 @@ def update_template_ids(
                     is not None
                 ):
                     LOGGER.debug("Parameters: Tenancy to be copied")
-                    launchTemplateData_parameter["Placement"] = {}
-                    launchTemplateData_parameter["Placement"]["Tenancy"] = (
+                    launch_template_data_parameter["Placement"] = {}
+                    launch_template_data_parameter["Placement"]["Tenancy"] = (
                         template_data["LaunchTemplateData"]
                         .get("Placement", {})
                         .get("Tenancy")
@@ -664,22 +846,22 @@ def update_template_ids(
                     LOGGER.debug(
                         template_data["LaunchTemplateData"].get("IamInstanceProfile")
                     )
-                    launchTemplateData_parameter["IamInstanceProfile"] = {}
-                    launchTemplateData_parameter["IamInstanceProfile"] = template_data[
-                        "LaunchTemplateData"
-                    ].get("IamInstanceProfile")
-                    LOGGER.debug(launchTemplateData_parameter["IamInstanceProfile"])
+                    launch_template_data_parameter["IamInstanceProfile"] = {}
+                    launch_template_data_parameter["IamInstanceProfile"] = (
+                        template_data["LaunchTemplateData"].get("IamInstanceProfile")
+                    )
+                    LOGGER.debug(launch_template_data_parameter["IamInstanceProfile"])
                 else:
                     LOGGER.debug("Parameters: EXCLUDING IamInstanceProfile")
 
-                launchTemplateData_parameter["NetworkInterfaces"] = [
+                launch_template_data_parameter["NetworkInterfaces"] = [
                     existing_network_interface
                 ]
                 response = ec2.create_launch_template_version(
                     DryRun=False,
                     LaunchTemplateId=target_configuration["ec2LaunchTemplateID"],
                     SourceVersion=str(version["VersionNumber"]),
-                    LaunchTemplateData=launchTemplateData_parameter,
+                    LaunchTemplateData=launch_template_data_parameter,
                 )
 
                 LOGGER.debug(
@@ -701,15 +883,38 @@ def update_template_ids(
                 break
 
 
-# ---------------------------------------
-#
-# Reads network interfaces list from the source launch template
-# identifies the one with DeviceIndex = 0
-# Extract the following info from it and returns a dictionary back
-# AssociatePublicIpAddress, DeleteOnTermination, Groups(list) and SubnetId
-#
-# ---------------------------------------
 def get_network_interfaces_info(network_interfaces):
+    """
+    Extracts network interface information from a launch template.
+
+    This function reads the network interfaces list from a source launch template,
+    identifies the interface with DeviceIndex = 0, and extracts specific information
+    from it.
+
+    Args:
+        network_interfaces (list): A list of dictionaries, each representing a network
+                                   interface configuration from a launch template.
+
+    Returns:
+        dict: A dictionary containing the following keys:
+              - DeviceIndex: Always set to 0.
+              - AssociatePublicIpAddress: Boolean indicating if a public IP should be associated.
+              - DeleteOnTermination: Boolean indicating if the interface should be deleted on instance termination.
+              - Groups: A list of security group IDs (if available).
+              - SubnetId: The ID of the subnet (if available).
+
+    Notes:
+        - The function focuses on the network interface with DeviceIndex = 0.
+        - If certain attributes are not found in the source data, default values or omissions are applied:
+          - AssociatePublicIpAddress defaults to False if not found.
+          - DeleteOnTermination defaults to True if not found.
+          - Groups and SubnetId are omitted if not found.
+
+    Example:
+        >>> interfaces = [{'DeviceIndex': 0, 'AssociatePublicIpAddress': True, 'DeleteOnTermination': False, 'Groups': ['sg-1234'], 'SubnetId': 'subnet-5678'}]
+        >>> get_network_interfaces_info(interfaces)
+        {'DeviceIndex': 0, 'AssociatePublicIpAddress': True, 'DeleteOnTermination': False, 'Groups': ['sg-1234'], 'SubnetId': 'subnet-5678'}
+    """
 
     return_network_interface = {}
     return_network_interface["DeviceIndex"] = 0
@@ -744,12 +949,40 @@ def get_network_interfaces_info(network_interfaces):
     return return_network_interface
 
 
-# ---------------------------------------
-#
-# Entry point
-#
-# ---------------------------------------
 def main():
+    """
+    Main entry point for the script to copy launch templates and configurations across MGN servers.
+
+    This function orchestrates the entire process of updating launch templates and configurations
+    for specified target servers in AWS Application Migration Service (MGN). It performs the following steps:
+
+    1. Parses command-line arguments using argparse.
+    2. Sets up logging based on the debug flag.
+    3. Validates the provided arguments.
+    4. Retrieves the source template data and target server configurations.
+    5. Extracts launch and post-launch configurations if specified.
+    6. Updates the target servers' launch templates and configurations.
+
+    Command-line Arguments:
+        --target: Specifies the servers to update.
+        --source-server: The server ID whose launch template will be used for updates.
+        --template-id: The launch template ID to use.
+        --launch-settings-file: JSON file containing launch settings/configuration.
+        --copy-launch-settings: Flag to copy launch configuration.
+        --copy-post-launch-settings: Flag to copy post-launch configuration.
+        --parameters: Specifies which parameters to copy from the EC2 Launch Template.
+        --debug: Sets logging to DEBUG level.
+
+    The function uses several helper functions to process the data and make the necessary updates.
+    It handles errors and provides appropriate logging throughout the process.
+
+    Exit codes:
+        0: Successful execution
+        1: Error in argument validation or no target servers found
+
+    Note:
+        This function relies on global variables and imported modules for AWS interactions and logging.
+    """
 
     # Setup argparse
     parser = argparse.ArgumentParser(
