@@ -17,9 +17,10 @@
 #########################################################################################
 
 import argparse
-import sys
 import json
 import logging
+import sys
+
 import boto3
 
 # Defining global variables that capture info on parameters passed to script
@@ -179,21 +180,21 @@ def validate_arguments(args):
                 SOURCE_TYPE = "launch_template"
                 SOURCE = args.get("template_id")
 
-        # Check to see if --copy-lauch-settings specified along with --launch-settings file or source server
-        # If not, show an error and exit as either a source server or a launch settings file needs to be specified with this option
+        # Check if --copy-launch-settings used with --launch-settings or source server
+        # Error if neither source server nor launch settings file specified
         if (
             args.get("copy_launch_settings")
             and args.get("source_server") is None
             and args.get("launch_settings_file") is None
         ):
             LOGGER.error(
-                "Option to copy launch settings used without providing either a source server or launch settings json file."
+                "Copy launch settings option used without source server or settings file."
             )
             usage_message()
             sys.exit(1)
 
-        # Check to see if --copy-post-lauch-settings specified along with source server
-        # If not, show an error and exit as either a source server or a launch settings file needs to be specified with this option
+        # Check if --copy-post-launch-settings used with source server
+        # Error if no source server specified for this option
         if args.get("copy_post_launch_settings") and args.get("source_server") is None:
             LOGGER.error(
                 "Option to copy post launch settings used without providing a source server."
@@ -226,11 +227,10 @@ def validate_arguments(args):
                     continue
 
             if len(test_parameters) > 0:
+                LOGGER.error(f"Invalid parameter(s) in --parameters: {test_parameters}")
                 LOGGER.error(
-                    f"Incorrect parameter(s) specified with the --parameters argument. {test_parameters}"
-                )
-                LOGGER.error(
-                    f"Available parameters to copy: SubnetId,AssociatePublicIpAddress,DeleteOnTermination,Groups,Tenancy,IamInstanceProfile,InstanceType"
+                    "Valid parameters: SubnetId, AssociatePublicIpAddress, DeleteOnTermination, "
+                    "Groups, Tenancy, IamInstanceProfile, InstanceType"
                 )
                 sys.exit(1)
 
@@ -287,7 +287,8 @@ def get_template_data(source_server_or_template_id):
 def get_source_launch_configuration(source_server):
     mgn = boto3.client("mgn")
     if LAUNCH_SETTINGS_FILE is not None:
-        # Launch settings file was passed as an argument. Read the file and load launch configuration
+        # Launch settings file was passed as an argument.
+        # Read the file and load launch configuration.
         LOGGER.debug("Launch settings json file specified. Reading data.")
         with open(LAUNCH_SETTINGS_FILE) as file:
             data = json.load(file)
@@ -462,7 +463,9 @@ def search_replicating_servers(filters, filter_by_tags, tag_key, tag_value):
             return_list.append(server)
         else:
             LOGGER.info(
-                f'Unable to update target server {server["sourceServerID"]} due to it being in {server["lifeCycle"]["state"]} state'
+                "Unable to update target server %s due to it being in %s state",
+                server["sourceServerID"],
+                server["lifeCycle"]["state"],
             )
 
     return return_list
@@ -507,11 +510,12 @@ def update_template_ids(
     mgn = boto3.client("mgn")
     for target_configuration in target_servers_configuration:
 
-        LOGGER.info(f'Updating target server {target_configuration["sourceServerID"]}')
+        LOGGER.info("Updating target server %s", target_configuration["sourceServerID"])
         # Check if launch_configuration specified. Update launch configuration if set to True
         if launch_configuration is not None:
             LOGGER.debug(
-                f'Updating launch configuration for target server {target_configuration["sourceServerID"]}'
+                "Updating launch configuration for target server %s",
+                target_configuration["sourceServerID"],
             )
             mgn.update_launch_configuration(
                 sourceServerID=target_configuration["sourceServerID"],
@@ -527,7 +531,8 @@ def update_template_ids(
 
         if post_launch_configuration is not None:
             LOGGER.debug(
-                f'Updating post launch configuration for target server {target_configuration["sourceServerID"]}'
+                "Updating post launch configuration for target server %s",
+                target_configuration["sourceServerID"],
             )
             if "postLaunchActions" in post_launch_configuration:
                 mgn.update_launch_configuration(
@@ -550,12 +555,12 @@ def update_template_ids(
                 # Extract the network information from the source version
                 # The values we are interested in are:
                 # AssociatePublicIpAddress, DeleteOnTermination, Groups(list) and SubnetId
-                NetworkInterfaces = get_network_interfaces_info(
+                network_interfaces = get_network_interfaces_info(
                     template_data["LaunchTemplateData"]["NetworkInterfaces"]
                 )
 
                 # Get existing NetworkInterfaces dictionary from the target template with DeviceIndex of 0
-                Existing_NetworkInterface = get_network_interfaces_info(
+                existing_network_interface = get_network_interfaces_info(
                     version["LaunchTemplateData"].get(
                         "NetworkInterfaces", [{"DeviceIndex": 0}]
                     )
@@ -575,7 +580,7 @@ def update_template_ids(
                 """
 
                 LOGGER.debug("PARAMETERS = " + str(PARAMETERS))
-                LOGGER.debug(f"NetworkInterfaces = {NetworkInterfaces}")
+                LOGGER.debug(f"NetworkInterfaces = {network_interfaces}")
 
                 # Create the LaunchTemplateData parameter based on what user wants to copy
                 launchTemplateData_parameter = {}
@@ -583,41 +588,42 @@ def update_template_ids(
                 if "AssociatePublicIpAddress" in PARAMETERS:
                     LOGGER.debug("Parameters: AssociatePublicIpAddress to be copied")
                     try:
-                        Existing_NetworkInterface["AssociatePublicIpAddress"] = (
-                            NetworkInterfaces["AssociatePublicIpAddress"]
+                        existing_network_interface["AssociatePublicIpAddress"] = (
+                            network_interfaces["AssociatePublicIpAddress"]
                         )
                     except:
-                        Existing_NetworkInterface["AssociatePublicIpAddress"] = False
+                        existing_network_interface["AssociatePublicIpAddress"] = False
 
                 if "DeleteOnTermination" in PARAMETERS:
                     LOGGER.debug("Parameters: DeleteOnTermination to be copied")
                     try:
-                        Existing_NetworkInterface["DeleteOnTermination"] = (
-                            NetworkInterfaces["DeleteOnTermination"]
+                        existing_network_interface["DeleteOnTermination"] = (
+                            network_interfaces["DeleteOnTermination"]
                         )
                     except:
-                        Existing_NetworkInterface["DeleteOnTermination"] = True
+                        existing_network_interface["DeleteOnTermination"] = True
 
                 if "SubnetId" in PARAMETERS:
                     LOGGER.debug("Parameters: SubnetId to be copied")
                     try:
-                        Existing_NetworkInterface["SubnetId"] = NetworkInterfaces[
+                        existing_network_interface["SubnetId"] = network_interfaces[
                             "SubnetId"
                         ]
                     except:
-                        Existing_NetworkInterface.pop("SubnetId", None)
+                        existing_network_interface.pop("SubnetId", None)
 
                 if "Groups" in PARAMETERS:
                     LOGGER.debug("Parameters: Groups to be copied")
                     try:
-                        Existing_NetworkInterface["Groups"] = NetworkInterfaces[
+                        existing_network_interface["Groups"] = network_interfaces[
                             "Groups"
                         ]
                     except:
-                        Existing_NetworkInterface.pop("Groups", None)
+                        existing_network_interface.pop("Groups", None)
 
                 LOGGER.debug(
-                    f'Creating new launch template version for launch template {target_configuration["ec2LaunchTemplateID"]}'
+                    "Creating new launch template version for launch template %s",
+                    target_configuration["ec2LaunchTemplateID"],
                 )
 
                 if (
@@ -667,7 +673,7 @@ def update_template_ids(
                     LOGGER.debug("Parameters: EXCLUDING IamInstanceProfile")
 
                 launchTemplateData_parameter["NetworkInterfaces"] = [
-                    Existing_NetworkInterface
+                    existing_network_interface
                 ]
                 response = ec2.create_launch_template_version(
                     DryRun=False,
@@ -677,7 +683,8 @@ def update_template_ids(
                 )
 
                 LOGGER.debug(
-                    f'Setting the latest version as the default version for launch template {target_configuration["ec2LaunchTemplateID"]}'
+                    "Setting the latest version as the default version for launch template %s",
+                    target_configuration["ec2LaunchTemplateID"],
                 )
                 ec2.modify_launch_template(
                     DryRun=False,
@@ -688,7 +695,8 @@ def update_template_ids(
                 )
 
                 LOGGER.info(
-                    f'Finished updating target server {target_configuration["sourceServerID"]}'
+                    "Finished updating target server %s",
+                    target_configuration["sourceServerID"],
                 )
                 break
 
