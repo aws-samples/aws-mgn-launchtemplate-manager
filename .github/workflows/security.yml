@@ -1,4 +1,4 @@
-name: Pylint
+name: Security
 
 on:
   pull_request:
@@ -13,8 +13,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo apt-get install -y pylint
+          sudo apt-get install -y bandit
 
-      - name: Analysing the code with pylint
+      - name: Analysing the code with bandit
         run: |
-          pylint $(git ls-files '*.py')
+          bandit $(git ls-files '*.py')
