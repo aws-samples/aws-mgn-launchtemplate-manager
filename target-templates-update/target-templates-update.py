@@ -426,6 +426,8 @@ def get_source_launch_configuration(source_server):
                 "targetInstanceTypeRightSizingMethod": data[
                     "targetInstanceTypeRightSizingMethod"
                 ],
+                "enableMapAutoTagging": data["enableMapAutoTagging"],
+                "mapAutoTaggingMpeID": data["mapAutoTaggingMpeID"],
             }
     elif SOURCE_TYPE == "server":
         LOGGER.debug(
@@ -874,7 +876,7 @@ def get_network_interfaces_info(network_interfaces):
         Returns:
             dict: A dictionary containing the following keys:
                   - DeviceIndex: Always set to 0.
-                  - AssociatePublicIpAddress: Boolean indicating if a public IP should be 
+                  - AssociatePublicIpAddress: Boolean indicating if a public IP should be
                     associated.
                   - DeleteOnTermination: Boolean indicating if the interface should be deleted
                     on instance termination.
@@ -980,7 +982,7 @@ def main():
     parser.add_argument(
         "--source-server",
         help="Specify the server id whose launch template would be used to update the "
-             "launch template in target server",
+        "launch template in target server",
         required=False,
     )
     parser.add_argument(
@@ -994,14 +996,14 @@ def main():
     parser.add_argument(
         "--copy-launch-settings",
         help="Specify whether the launch configuration should be copied or not if "
-             "source server or json file specified",
+        "source server or json file specified",
         required=False,
         action="store_true",
     )
     parser.add_argument(
         "--copy-post-launch-settings",
         help="Specify whether the post-launch configuration should be copied or not if "
-             "source server or json file specified",
+        "source server or json file specified",
         required=False,
         action="store_true",
     )
