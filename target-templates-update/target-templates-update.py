@@ -295,9 +295,8 @@ def validate_arguments(args):
         if args.get("parameters") is not None:
             # check to see if valid options passed for parameters argument
             PARAMETERS = args.get("parameters").split(",")
-            test_parameters = PARAMETERS.copy()
 
-            for parameter in [
+            valid_parameters = {
                 "SubnetId",
                 "AssociatePublicIpAddress",
                 "DeleteOnTermination",
@@ -305,16 +304,15 @@ def validate_arguments(args):
                 "Tenancy",
                 "IamInstanceProfile",
                 "InstanceType",
-            ]:
-                try:
-                    test_parameters.remove(parameter)
-                except:
-                    continue
+            }
+            provided_parameters = set(PARAMETERS)
 
-            if len(test_parameters) > 0:
+            invalid_parameters = provided_parameters - valid_parameters
+
+            if len(invalid_parameters) > 0:
                 LOGGER.error(
                     "Invalid parameter(s) in --parameters: %s",
-                    ", ".join(test_parameters),
+                    ", ".join(invalid_parameters),
                 )
                 LOGGER.error(
                     "Valid parameters: SubnetId, AssociatePublicIpAddress, DeleteOnTermination, "
