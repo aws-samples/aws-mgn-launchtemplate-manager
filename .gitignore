@@ -7,3 +7,7 @@ env.bak/
 venv.bak/
 mgn_launch_automate.log
 .DS_Store
+*.csv
+!target-templates-import/sample_template.csv
+*.json
+!target-templates-update/launch_configuration.json

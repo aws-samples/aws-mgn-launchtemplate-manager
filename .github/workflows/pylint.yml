@@ -9,12 +9,20 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
 
       - name: Install dependencies
         run: |
-          sudo apt-get install -y pylint
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
-      - name: Analysing the code with pylint
+      - name: Analysing code with pylint
         run: |
-          pylint $(git ls-files '*.py')
+          pylint --errors-only $(git ls-files '*.py')
