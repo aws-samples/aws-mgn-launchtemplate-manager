@@ -16,6 +16,7 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                                #
 #########################################################################################
 
+import argparse
 import csv
 import logging
 
@@ -102,11 +103,11 @@ def get_launch_config(source_server_id, hostname):
 
 def query_lifecycle_state(source_server_id):
     """
-    Query the lifecycle state of a specified source server using AWS Application 
+    Query the lifecycle state of a specified source server using AWS Application
     Migration Service (MGN).
 
     This function retrieves the current lifecycle state of a source server identified by its ID.
-    It uses the MGN client to describe the source server and extract the lifecycle 
+    It uses the MGN client to describe the source server and extract the lifecycle
     state information.
 
     Parameters:
@@ -259,9 +260,9 @@ def update_launch_config(
         row (dict): A dictionary containing the new configuration values, typically from a CSV row.
 
     Notes:
-        - This function performs extensive modifications to the launch template and 
+        - This function performs extensive modifications to the launch template and
           general settings.
-        - It handles various aspects such as instance sizing, network interfaces, 
+        - It handles various aspects such as instance sizing, network interfaces,
           storage configurations, and tagging.
         - The function assumes the existence of global 'log' object for logging.
         - After updating configurations, it calls external functions to apply changes
@@ -312,9 +313,9 @@ def update_launch_config(
         new_general_launch_settings["copyPrivateIp"] = (
             True if row["Copy_private_ip"].capitalize() == "True" else False
         )
-    if row["Enable_Map_Auto_Tagging"] != "" and row["Enable_Map_Auto_Tagging"].capitalize() != str(
-        general_launch_settings["enableMapAutoTagging"]
-    ):
+    if row["Enable_Map_Auto_Tagging"] != "" and row[
+        "Enable_Map_Auto_Tagging"
+    ].capitalize() != str(general_launch_settings["enableMapAutoTagging"]):
         new_general_launch_settings["enableMapAutoTagging"] = (
             True if row["Enable_Map_Auto_Tagging"].capitalize() == "True" else False
         )
@@ -399,11 +400,7 @@ def update_launch_config(
     all_id_pis = "".join(row["Primary_private_ip"].split()).split(",")
 
     if row["Subnet_ID"] != "":
-        for (
-            idsub
-        ) in (
-            all_id_subs
-        ):
+        for idsub in all_id_subs:
             # If no ENI-Id is present for a network device index,
             # then subnet-id for network device index can be present
             idx = idsub.split(":")[0]
@@ -419,9 +416,7 @@ def update_launch_config(
                     network_interface["SubnetId"] = sub
                     network_interface.pop("NetworkInterfaceId", None)
 
-    if (
-        row["Security_Groups"] != ""
-    ):
+    if row["Security_Groups"] != "":
         # If no ENI-Id is present for a network device index,
         # then security group for network device index can be present
         for idsg in all_id_sgs:
@@ -438,9 +433,7 @@ def update_launch_config(
                     network_interface["Groups"] = security_group
                     network_interface.pop("NetworkInterfaceId", None)
 
-    if (
-        row["Primary_private_ip"] != ""
-    ):
+    if row["Primary_private_ip"] != "":
         # If no ENI-Id is present for a network device index,
         # then primary private ip for network device index can be present
         for idpi in all_id_pis:
@@ -463,9 +456,7 @@ def update_launch_config(
         for network_interface in network_interfaces:
             network_interface.pop("PrivateIpAddresses", None)
 
-    if (
-        row["ENI"] != ""
-    ):
+    if row["ENI"] != "":
         # For Network interface index that has an ENI,
         # no need to specify subnetID or Security groups or primary private ip
         for ideni in all_id_enis:
@@ -578,7 +569,7 @@ def update_launch_config(
 
 def update_ec2_launch_template(new_ec2_launch_template, source_server_id):
     """
-    Create a new EC2 Launch Template version with updated launch settings and set it 
+    Create a new EC2 Launch Template version with updated launch settings and set it
     as the default version.
 
     This function creates a new version of an existing EC2 Launch Template using the provided
@@ -670,11 +661,11 @@ def update_mgn_launch_config(new_general_launch_settings, source_server_id):
     Update the MGN (AWS Application Migration Service) launch configuration for a
     specific source server.
 
-    This function attempts to update various launch settings for a given source server 
+    This function attempts to update various launch settings for a given source server
     in MGN using the provided new general launch settings.
 
     Args:
-        new_general_launch_settings (dict): A dictionary containing the new launch 
+        new_general_launch_settings (dict): A dictionary containing the new launch
             configuration settings.
             Expected keys include:
             - bootMode
@@ -686,14 +677,14 @@ def update_mgn_launch_config(new_general_launch_settings, source_server_id):
         source_server_id (str): The unique identifier of the source server in MGN.
 
     Raises:
-        Exception: Any exception that occurs during the update process is caught, 
+        Exception: Any exception that occurs during the update process is caught,
             logged, and printed.
 
     Notes:
         - This function uses a global 'mgn_client' object to interact with the MGN service.
-        - If an exception occurs, an error message is logged with the source server ID 
+        - If an exception occurs, an error message is logged with the source server ID
           and the full exception details.
-        - The function does not return any value; it only performs the update operation 
+        - The function does not return any value; it only performs the update operation
           or logs errors.
 
     Example:
@@ -718,8 +709,8 @@ def update_mgn_launch_config(new_general_launch_settings, source_server_id):
             targetInstanceTypeRightSizingMethod=new_general_launch_settings[
                 "targetInstanceTypeRightSizingMethod"
             ],
-            enableMapAutoTagging=new_general_launch_settings['enableMapAutoTagging'],
-            mapAutoTaggingMpeID=new_general_launch_settings['mapAutoTaggingMpeID'],
+            enableMapAutoTagging=new_general_launch_settings["enableMapAutoTagging"],
+            mapAutoTaggingMpeID=new_general_launch_settings["mapAutoTaggingMpeID"],
         )
     except Exception as exception:
         log.error(
@@ -744,7 +735,7 @@ def main():
             - Retrieves the current launch configuration and template version.
             - Updates the launch configuration with new settings from the CSV row.
 
-    The function skips servers that are disconnected or in cutover state, logging an 
+    The function skips servers that are disconnected or in cutover state, logging an
     info message for each skipped server.
 
     Note:
@@ -757,8 +748,19 @@ def main():
         Any exceptions raised by the helper functions or file operations are not caught
         in this function.
     """
+    parser = argparse.ArgumentParser(
+        description="Update MGN launch configurations based on a CSV file.",
+    )
+    parser.add_argument(
+        "--template-file",
+        help="Specify the path to the CSV file containing server information",
+        type=str,
+        default="sample_template.csv",
+    )
+    args = parser.parse_args()
+
     source_servers = get_all_source_servers()
-    with open("sample_template.csv", mode="r", encoding="utf-8-sig") as scriptfile:
+    with open(args.template_file, mode="r", encoding="utf-8-sig") as scriptfile:
         scriptfile_reader = csv.DictReader(scriptfile)
         for row in scriptfile_reader:
             hostname = row["Server_Name"]
