@@ -824,9 +824,10 @@ def update_template_ids(
                     LOGGER.debug(
                         template_data["LaunchTemplateData"].get("IamInstanceProfile")
                     )
-                    launch_template_data_parameter["IamInstanceProfile"] = {}
                     launch_template_data_parameter["IamInstanceProfile"] = (
-                        template_data["LaunchTemplateData"].get("IamInstanceProfile")
+                        template_data["LaunchTemplateData"].get(
+                            "IamInstanceProfile", {}
+                        )
                     )
                     LOGGER.debug(launch_template_data_parameter["IamInstanceProfile"])
                 else:
