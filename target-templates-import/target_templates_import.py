@@ -312,6 +312,18 @@ def update_launch_config(
         new_general_launch_settings["copyPrivateIp"] = (
             True if row["Copy_private_ip"].capitalize() == "True" else False
         )
+    if row["Enable_Map_Auto_Tagging"] != "" and row["Enable_Map_Auto_Tagging"].capitalize() != str(
+        general_launch_settings["enableMapAutoTagging"]
+    ):
+        new_general_launch_settings["enableMapAutoTagging"] = (
+            True if row["Enable_Map_Auto_Tagging"].capitalize() == "True" else False
+        )
+    if row["Map_Auto_Tagging_Mpe_ID"] != "" and row["Map_Auto_Tagging_Mpe_ID"] != str(
+        general_launch_settings["mapAutoTaggingMpeID"]
+    ):
+        new_general_launch_settings["mapAutoTaggingMpeID"] = row[
+            "Map_Auto_Tagging_Mpe_ID"
+        ]
     if (
         row["Start_Instance_upon_launch"] != ""
         and general_launch_settings["launchDisposition"]
@@ -706,6 +718,8 @@ def update_mgn_launch_config(new_general_launch_settings, source_server_id):
             targetInstanceTypeRightSizingMethod=new_general_launch_settings[
                 "targetInstanceTypeRightSizingMethod"
             ],
+            enableMapAutoTagging=new_general_launch_settings['enableMapAutoTagging'],
+            mapAutoTaggingMpeID=new_general_launch_settings['mapAutoTaggingMpeID'],
         )
     except Exception as exception:
         log.error(
