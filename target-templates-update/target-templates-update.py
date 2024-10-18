@@ -35,6 +35,10 @@ SOURCE = None
 # Defines what type of source specified. Is it a source server or launch template
 SOURCE_TYPE = None
 
+# Whether or not the replication settings are to be copied
+# default is False
+COPY_REPLICATION_SETTINGS = False
+
 # Whether or not the launch settings are to be copied
 # default is False
 COPY_LAUNCH_SETTINGS = False
@@ -219,6 +223,7 @@ def validate_arguments(args):
     global TARGET_TYPE
     global SOURCE
     global SOURCE_TYPE
+    global COPY_REPLICATION_SETTINGS
     global COPY_LAUNCH_SETTINGS
     global COPY_POST_LAUNCH_SETTINGS
     global LAUNCH_SETTINGS_FILE
@@ -265,8 +270,20 @@ def validate_arguments(args):
                 SOURCE_TYPE = "launch_template"
                 SOURCE = args.get("template_id")
 
-        # Check if --copy-launch-settings used with --launch-settings or source server
-        # Error if neither source server nor launch settings file specified
+        # Check if --copy-replication-settings used with source server
+        # Error if source server is not specified
+        if (
+            args.get("copy_replication_settings")
+            and args.get("source_server") is None
+        ):
+            LOGGER.error(
+                "Option to copy replication settings used without providing a source server."
+            )
+            usage_message()
+            sys.exit(1)
+
+        # Check to see if --copy-lauch-settings specified along with --launch-settings file or source server
+        # If not, show an error and exit as either a source server or a launch settings file needs to be specified with this option
         if (
             args.get("copy_launch_settings")
             and args.get("source_server") is None
@@ -287,6 +304,7 @@ def validate_arguments(args):
             usage_message()
             sys.exit(1)
 
+        COPY_REPLICATION_SETTINGS = args.get("copy_replication_settings")
         COPY_LAUNCH_SETTINGS = args.get("copy_launch_settings")
         COPY_POST_LAUNCH_SETTINGS = args.get("copy_post_launch_settings")
         LAUNCH_SETTINGS_FILE = args.get("launch_settings_file")
@@ -629,6 +647,87 @@ def search_replicating_servers(filters, filter_by_tags, tag_key, tag_value):
             )
 
     return return_list
+
+def get_replication_settings(source_server):
+    """
+    Retrieves the replication configuration settings for a specified source server.
+
+    This function uses the AWS Application Migration Service (MGN) to fetch
+    the replication configuration for a given source server.
+
+    Args:
+        source_server (str): The ID of the source server for which to retrieve
+                             the replication configuration.
+
+    Returns:
+        dict: A dictionary containing the replication configuration settings
+              for the specified source server. The structure of this dictionary
+              depends on the AWS MGN API response.
+
+    Raises:
+        Exception: Any exception raised by the AWS MGN API call will be
+                   propagated to the caller.
+
+    Note:
+        This function assumes that the AWS SDK for Python (Boto3) is properly
+        configured with the necessary credentials and permissions to make
+        API calls to AWS MGN.
+    """
+    replication_settings = mgn.get_replication_configuration(
+        sourceServerID=source_server, 
+    )
+    return replication_settings
+
+
+def update_replication_settings(target_servers, replication_settings):
+    """
+    Updates the replication configuration for multiple target servers.
+
+    This function iterates through a list of target servers and updates their
+    replication settings using the AWS Application Migration Service (MGN).
+
+    Args:
+        target_servers (list): A list of dictionaries, where each dictionary
+                               represents a target server and contains at least
+                               a 'sourceServerID' key.
+        replication_settings (dict): A dictionary containing the replication
+                                     configuration settings to be applied. It
+                                     should include the following keys:
+                                     - bandwidthThrottling
+                                     - dataPlaneRouting
+                                     - createPublicIP
+                                     - useDedicatedReplicationServer
+                                     - replicationServerInstanceType
+                                     - stagingAreaSubnetId
+                                     - defaultLargeStagingDiskType
+                                     - replicationServersSecurityGroupsIDs
+
+    Returns:
+        None
+
+    Raises:
+        KeyError: If any required key is missing in the target_servers or
+                  replication_settings dictionaries.
+        Exception: Any exception raised by the AWS MGN API call will be
+                   propagated to the caller.
+
+    Note:
+        This function assumes that the AWS SDK for Python (Boto3) is properly
+        configured with the necessary credentials and permissions to make
+        API calls to AWS MGN.
+    """
+    for target_server in target_servers:
+        mgn.update_replication_configuration(
+            sourceServerID=target_server["sourceServerID"],
+            bandwidthThrottling=replication_settings["bandwidthThrottling"],
+            dataPlaneRouting=replication_settings["dataPlaneRouting"],
+            createPublicIP=replication_settings["createPublicIP"],
+            useDedicatedReplicationServer=replication_settings["useDedicatedReplicationServer"],
+            replicationServerInstanceType=replication_settings["replicationServerInstanceType"],
+            stagingAreaSubnetId=replication_settings["stagingAreaSubnetId"],
+            defaultLargeStagingDiskType=replication_settings["defaultLargeStagingDiskType"],
+            replicationServersSecurityGroupsIDs=replication_settings["replicationServersSecurityGroupsIDs"]
+        )
 
 
 def update_template_ids(
@@ -991,6 +1090,12 @@ def main():
         required=False,
     )
     parser.add_argument(
+        "--copy-replication-settings",
+        help="Specify whether the replication settings should be copied or not if source server specified",
+        required=False,
+        action="store_true",
+    )
+    parser.add_argument(
         "--copy-launch-settings",
         help="Specify whether the launch configuration should be copied or not if "
         "source server or json file specified",
@@ -1028,6 +1133,9 @@ def main():
 
     # Get the template data and target servers configuration
     template_data = get_template_data(SOURCE)
+
+    if args.get("copy_replication_settings"):
+        replication_settings = get_replication_settings(SOURCE)
 
     # Check if --copy-launch-settings set
     if args.get("copy_launch_settings"):
@@ -1075,6 +1183,10 @@ def main():
         source_launch_configuration,
         source_post_launch_configuration,
     )
+
+    if args.get("copy_replication_settings"):
+        LOGGER.debug("Updating replication settings")
+        update_replication_settings(target_servers_configuration, replication_settings)
 
     LOGGER.info("Finished updating all targets.")
 
