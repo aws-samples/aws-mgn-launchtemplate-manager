@@ -919,15 +919,13 @@ def get_network_interfaces_info(network_interfaces):
             except:
                 return_network_interface["DeleteOnTermination"] = True
 
-            try:
-                return_network_interface["Groups"] = network_interface["Groups"]
-            except:
-                pass
+            groups = network_interface.get("Groups")
+            if groups is not None:
+                return_network_interface["Groups"] = groups
 
-            try:
-                return_network_interface["SubnetId"] = network_interface["SubnetId"]
-            except:
-                pass
+            subnet_id = network_interface.get("SubnetId")
+            if subnet_id is not None:
+                return_network_interface["SubnetId"] = subnet_id
 
     return return_network_interface
 
