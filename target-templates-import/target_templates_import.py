@@ -33,6 +33,27 @@ mgn_client = boto3.client("mgn")
 ec2_client = boto3.client("ec2")
 
 
+def list_all(client, method, type, **kwargs):
+    """
+    Retrieve all items from a paginated AWS API call.
+
+    Args:
+        client (botocore.client.BaseClient): The AWS client object to use for the API call.
+        method (str): The name of the method to call on the client object.
+        type (str): The key in the response dictionary that contains the items to retrieve.
+        **kwargs: Additional keyword arguments to pass to the API call.
+
+    Returns:
+        list: A list containing all items retrieved from the API call.
+    """
+    results = []
+    paginator = client.get_paginator(method)
+    page_iterator = paginator.paginate(**kwargs)
+    for page in page_iterator:
+        results += page[type]
+    return results
+
+
 def get_launch_config(source_server_id, hostname):
     """
     Retrieve the general launch settings from MGN and EC2 launch settings for a
@@ -179,9 +200,9 @@ def get_all_source_servers():
     >>> print(servers[0]['sourceServerID'])
     's-1234567890abcdef0'
     """
-    source_servers = mgn_client.describe_source_servers(filters={"isArchived": False})
+    source_servers = list_all(mgn_client, "describe_source_servers", "items", filters={"isArchived": False})
 
-    return source_servers["items"]
+    return source_servers
 
 
 def get_source_server_id(hostname, source_servers):
