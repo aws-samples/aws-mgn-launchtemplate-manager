@@ -474,6 +474,8 @@ def update_launch_config(
                     network_interface.pop("SubnetId", None)
                     network_interface.pop("Groups", None)
                     network_interface.pop("PrivateIpAddresses", None)
+                    network_interface.pop("AssociatePublicIpAddress", None)
+                    network_interface.pop("DeleteOnTermination", None)
 
     blk_device_mappings = new_ec2_launch_template["LaunchTemplateData"][
         "BlockDeviceMappings"
